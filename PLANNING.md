@@ -68,62 +68,62 @@ web-rtc-phone/
 
 ## Phases
 
-### Phase 0 — Scaffolding
+### Phase 0 — Scaffolding ✅ (2026-07-06)
 
 **Goal:** Both packages run and talk to each other (a socket connects), nothing more.
 
-- [ ] `client/`: `npm create vite@latest client -- --template react-ts`; add `socket.io-client`, `webrtc-adapter`
-- [ ] `server/`: Node + Express + Socket.io + TypeScript, `nodemon` dev script
-- [ ] Client connects to server socket; log connect/disconnect on both ends
-- [ ] Root README quick-start works from a fresh clone
+- [x] `client/`: `npm create vite@latest client -- --template react-ts`; add `socket.io-client`, `webrtc-adapter`
+- [x] `server/`: Node + Express + Socket.io + TypeScript, `tsx watch` dev script
+- [x] Client connects to server socket; log connect/disconnect on both ends
+- [x] Root README quick-start works from a fresh clone
 
 **Done when:** `npm run dev` in both folders; browser console shows a socket connection.
 
-### Phase 1 — Signaling server
+### Phase 1 — Signaling server ✅ (2026-07-06)
 
-**Goal:** Complete room + relay protocol, verifiable with two browser tabs and console logs (no WebRTC yet).
+**Goal:** Complete room + relay protocol, verifiable without WebRTC.
 
-- [ ] Events: `join-room`, `peer-joined`, `offer`, `answer`, `ice-candidate`, `leave`, `peer-left`
-- [ ] In-memory room map; cap at 2 sockets, reject a third
-- [ ] Relay with `socket.to(room).emit(...)` — **never** `io.in(room).emit(...)` (echoes to sender — Pitfall 10)
-- [ ] Assign polite/impolite roles at join time (first joiner = polite) for Perfect Negotiation later
-- [ ] Cleanup on `disconnect`: delete room, notify remaining peer
+- [x] Events: `join-room`, `room-joined`, `peer-joined`, `description`, `ice-candidate`, `leave`, `peer-left` (offer/answer merged into one `description` event — perfect negotiation handles both through the same path)
+- [x] In-memory room map; cap at 2 sockets, reject a third (`room-full`)
+- [x] Relay with `socket.to(room).emit(...)` — **never** `io.in(room).emit(...)` (echoes to sender — Pitfall 10)
+- [x] Assign polite/impolite roles at join time (first joiner = polite) for Perfect Negotiation
+- [x] Cleanup on `disconnect`: delete room, notify remaining peer
 
-**Done when:** two tabs join the same room; each sees the other's events relayed, sender never receives its own.
+**Done when:** verified by `server/scripts/signaling-test.mjs` — 10 scripted protocol checks including no-echo and room-full.
 
-### Phase 2 — Media + peer connection (the core)
+### Phase 2 — Media + peer connection (the core) ✅ (2026-07-06)
 
 **Goal:** Live bidirectional audio between two tabs on localhost.
 
-- [ ] `getUserMedia({ audio: true })` with `NotAllowedError` / `NotFoundError` handling
-- [ ] `RTCPeerConnection` with STUN config; `addTrack` before offer (Pitfall: track-before-offer ordering)
-- [ ] Perfect Negotiation pattern (polite/impolite) instead of naive caller/callee (Pitfall 2)
-- [ ] ICE candidate buffer: queue candidates until `setRemoteDescription` resolves (Pitfall 1)
-- [ ] `ontrack` → `<audio autoplay>` with `e.streams[0] ?? new MediaStream([e.track])` fallback (Pitfall 8)
-- [ ] All connection objects in `useRef`, never `useState` (Pitfall 5)
-- [ ] Full teardown: `track.stop()` on every track + `pc.close()` + null refs (Pitfall 6 — mic indicator must turn off)
+- [x] `getUserMedia({ audio: true })` with `NotAllowedError` / `NotFoundError` handling
+- [x] `RTCPeerConnection` with STUN config; `addTrack` fires `negotiationneeded` (Pitfall: track-before-offer ordering)
+- [x] Perfect Negotiation pattern (polite/impolite) instead of naive caller/callee (Pitfall 2)
+- [x] ICE candidate buffer: queue candidates until `setRemoteDescription` resolves (Pitfall 1)
+- [x] `ontrack` → `<audio autoplay>` with `e.streams[0] ?? new MediaStream([e.track])` fallback (Pitfall 8)
+- [x] All connection objects in refs/effect closure, never `useState` (Pitfall 5)
+- [x] Full teardown: `track.stop()` on every track + `pc.close()` + null refs (Pitfall 6 — mic indicator must turn off)
 
-**Done when:** two tabs in the same room hear each other; hang-up releases the mic in both tabs.
+**Done when:** verified by `server/scripts/call-test.mjs` — real call in headless Chrome with fake mic devices.
 
-### Phase 3 — Call UI
+### Phase 3 — Call UI ✅ (2026-07-06)
 
 **Goal:** Usable app instead of console-driven demo.
 
-- [ ] Home screen: create room (generated short code) or join by code; room code in URL so links are shareable
-- [ ] Call screen: status (`connecting` → `connected` → `ended`), mute/unmute (`track.enabled`), hang up
-- [ ] "Peer left" notification; ICE `failed` shows an error instead of spinning forever (Pitfall 9)
-- [ ] Copy-room-link button (`navigator.clipboard`)
+- [x] Home screen: create room (generated short code) or join by code; room code in URL hash so links are shareable
+- [x] Call screen: status (`connecting` → `connected` → `ended`), mute/unmute (`track.enabled`), hang up
+- [x] "Peer left" returns survivor to *waiting* (call auto-recovers if the peer rejoins); ICE `failed` shows an error instead of spinning forever (Pitfall 9)
+- [x] Copy-room-link button (`navigator.clipboard`)
 
-**Done when:** the full manual checklist below passes on localhost with two tabs.
+**Done when:** e2e test passes: join, connect, mute, hang up, peer-left notice, rejoin+reconnect.
 
-### Phase 4 — Cross-device testing + Unraid deployment
+### Phase 4 — Cross-device testing + Unraid deployment (in progress)
 
 **Goal:** A real call between two devices on different networks.
 
-- [ ] Dockerfile: multi-stage build — build client, serve `client/dist` + Socket.io from the one Express server
+- [x] Dockerfile: multi-stage build — build client, serve `client/dist` + Socket.io from the one Express server (image builds; e2e test passes against the running container)
+- [x] Add `isSecureContext` guard with a clear error message (Pitfall 3)
 - [ ] Deploy container to Unraid (R7920)
 - [ ] Expose via Pangolin (DigitalOcean) → provides the **HTTPS** origin required for `getUserMedia` off-localhost
-- [ ] Add `isSecureContext` guard with a clear error message (Pitfall 3)
 - [ ] Test: two devices, different networks (e.g. laptop on Wi-Fi + phone on mobile data)
 - [ ] If ICE sticks at `checking`/`failed` cross-network: add TURN (Metered.ca free tier or self-hosted coturn on Unraid) — **not before** (Pitfall 4)
 
