@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer } from 'node:http';
-import { existsSync } from 'node:fs';
+import { createServer as createHttpsServer } from 'node:https';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { Server, type Socket } from 'socket.io';
@@ -21,7 +22,16 @@ const MAX_PEERS_PER_ROOM = 2;
 const rooms = new Map<string, Set<string>>();
 
 const app = express();
-const httpServer = createServer(app);
+
+// getUserMedia only exists on secure origins, and localhost is the sole
+// HTTP exemption — so testing from another device needs TLS. Point
+// TLS_CERT/TLS_KEY at a cert (e.g. self-signed, see certs/) to serve HTTPS;
+// unset, the server speaks plain HTTP as before.
+const { TLS_CERT, TLS_KEY } = process.env;
+const httpServer =
+  TLS_CERT && TLS_KEY
+    ? createHttpsServer({ cert: readFileSync(TLS_CERT), key: readFileSync(TLS_KEY) }, app)
+    : createServer(app);
 const io = new Server(httpServer, {
   // Dev: the Vite client runs on a different origin (localhost:5173).
   // Prod: same origin (Express serves the built client below), CORS unused.
@@ -112,5 +122,5 @@ if (existsSync(clientDist)) {
 
 const PORT = Number(process.env.PORT ?? 3001);
 httpServer.listen(PORT, () => {
-  console.log(`signaling server listening on :${PORT}`);
+  console.log(`signaling server listening on :${PORT} (${TLS_CERT && TLS_KEY ? 'https' : 'http'})`);
 });
