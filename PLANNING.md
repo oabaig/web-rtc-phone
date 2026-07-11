@@ -122,7 +122,7 @@ web-rtc-phone/
 
 - [x] Dockerfile: multi-stage build — build client, serve `client/dist` + Socket.io from the one Express server (image builds; e2e test passes against the running container)
 - [x] Add `isSecureContext` guard with a clear error message (Pitfall 3)
-- [ ] Deploy container to Unraid (R7920)
+- [x] Deploy container to Unraid (R7920) — `deploy/unraid.sh`, serving `https://192.168.1.202:3001` with a self-signed cert (2026-07-11)
 - [ ] Expose via Pangolin (DigitalOcean) → provides the **HTTPS** origin required for `getUserMedia` off-localhost
 - [ ] Test: two devices, different networks (e.g. laptop on Wi-Fi + phone on mobile data)
 - [ ] If ICE sticks at `checking`/`failed` cross-network: add TURN (Metered.ca free tier or self-hosted coturn on Unraid) — **not before** (Pitfall 4)

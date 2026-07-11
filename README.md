@@ -32,6 +32,16 @@ docker run -d -p 3001:3001 webrtc-phone
 
 One image: Express serves the built client and the Socket.io signaling from port 3001.
 
+Set `TLS_CERT`/`TLS_KEY` (paths to a PEM cert/key, e.g. self-signed via openssl) to serve HTTPS instead — required for mic access from any device that isn't localhost.
+
+## Deploy to Unraid
+
+```bash
+bash deploy/unraid.sh <unraid-ip>
+```
+
+Builds the image locally, ships it over SSH (`docker save`/`scp`/`docker load`), and (re)starts the container. If `/mnt/user/appdata/webrtc-phone/certs/{cert,key}.pem` exist on the server, the container serves HTTPS with them. Re-run the script to deploy updates.
+
 ## Tests
 
 With the server running (`npm run dev` in `server/`, and `npm run build` in `client/` if testing the served build):
