@@ -58,4 +58,5 @@ The rest of verification is a manual checklist (two devices, cross-network) in [
 
 - [PLANNING.md](PLANNING.md) — phased plan, decisions, manual test checklist
 - [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) — WebRTC explainer built around this code
+- [docs/THE-STACK.md](docs/THE-STACK.md) — every layer of the system, from microphone to phone network
 - `.planning/` — requirements and research (stack, architecture, features, and 12 WebRTC pitfalls)

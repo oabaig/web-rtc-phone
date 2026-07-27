@@ -2,6 +2,8 @@
 
 A tour of WebRTC using this codebase as the running example. Written for an engineer who has built web apps but never touched WebRTC. Code pointers reference `server/src/index.ts` and `client/src/hooks/useCall.ts`, which contain essentially all of the interesting logic.
 
+For the surrounding system rather than the protocol — deployment, TLS, CI, the media path in operational terms, and the telephony layer — see [THE-STACK.md](THE-STACK.md).
+
 ## The problem
 
 Two browsers want to stream audio to each other directly — not through a server, because relaying real-time media is expensive and adds latency. Two things make this hard:

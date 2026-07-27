@@ -16,7 +16,7 @@ Companion documents (in `.planning/`):
 
 | Decision | Choice | Notes |
 |----------|--------|-------|
-| Scope | 1:1 **audio-only** rooms, browser-to-browser | No video, no PSTN/phone numbers, no multi-party |
+| Scope | 1:1 **audio-only** rooms, browser-to-browser | No video, no multi-party. PSTN deferred to keep the core WebRTC path unobscured — un-deferred as Phase 5 (2026-07-27) |
 | Repo layout | Monorepo: `client/` + `server/` | Two packages, one repo; can still ship as one Docker image |
 | Environment | **Localhost first** | Cross-device/HTTPS deferred until the app works locally |
 | Test hosting (later) | Unraid server (R7920) via Docker | Both pieces in one container |
@@ -129,7 +129,44 @@ web-rtc-phone/
 
 **Done when:** phone on cellular and laptop on home Wi-Fi complete a call via the Pangolin URL.
 
-### Phase 5 — Stretch (optional, in order of learning value)
+### Phase 5 — Real phone numbers (PSTN via SIP trunk)
+
+**Goal:** Dial an ordinary phone number from the browser, and answer calls placed to a DID from VoIP Innovations.
+
+The "no PSTN" line in the decisions table kept Phases 0–4 focused on raw WebRTC; it was a starting boundary, not a permanent one. This is the first phase that gives up the peer-to-peer property: a phone can't speak WebRTC, so every PSTN call runs through a media gateway that terminates ICE/DTLS on the browser side and speaks SIP + plain RTP to the carrier.
+
+```
+Browser ──WebRTC: DTLS-SRTP / Opus──▶ Asterisk ──SIP + RTP / G.711──▶ VoIP Innovations ──▶ PSTN
+```
+
+Browser-to-browser rooms keep working untouched — PSTN is a second, parallel call path, not a replacement. Full background in [docs/THE-STACK.md](docs/THE-STACK.md#layer-7--telephony-webrtc-meets-the-phone-network).
+
+**Design decisions (provisional — confirm when building):**
+
+| Decision | Leaning | Why |
+|----------|---------|-----|
+| Gateway | **Asterisk** (`chan_pjsip`) | Best-documented WebRTC↔SIP path; a single `webrtc=yes` on the endpoint turns on DTLS, ICE, AVPF and rtcp-mux; runs in Docker |
+| Where it runs | **DigitalOcean droplet**, not Unraid | Trunks are IP-authenticated and the droplet has a static IP; home broadband doesn't. Tunnelling SIP + a 10k-port RTP range home is effort for no gain |
+| Browser SIP leg | **SIP.js over WSS** | The PSTN leg needs real SIP (`REGISTER`/`INVITE`/`BYE`); our Socket.io protocol can't express it. `useCall` stays as-is for room calls |
+| Codec | **Opus browser-side, transcode at the gateway** | Forcing G.711 end-to-end would avoid transcoding but locks the browser leg to narrowband; transcoding 1–2 calls costs a droplet nothing |
+| Trunk auth | **IP authentication** | Fewer moving parts than registration, and the carrier default |
+
+**Tasks:**
+
+- [ ] Provision with VoIP Innovations: account, one DID, termination endpoint pinned to the droplet IP; note per-minute rates and any concurrent-channel limit
+- [ ] Asterisk container on the droplet: PJSIP transports (WSS for browsers, UDP/TLS for the carrier), DTLS cert, `external_media_address`, RTP range 10000–20000/udp
+- [ ] Lock it down *before* the first call: carrier IPs only on 5060/5061, anonymous SIP refused, fail2ban on the SIP port, hard cap on concurrent channels
+- [ ] Outbound: browser endpoint registers over WSS; dialplan routes E.164 to the trunk; test call to a mobile, audio verified both directions
+- [ ] Inbound: DID → dialplan → ring the registered browser endpoint; incoming-call UI with accept/reject
+- [ ] Dialpad + in-call DTMF (`RTCDTMFSender` → RFC 4733 `telephone-event`), verified against a real IVR
+- [ ] Outbound caller ID / CNAM, and check STIR/SHAKEN attestation — wholesale trunks commonly get calls labelled "Spam Likely"
+- [ ] E911 registration for the DID (legal requirement, not a nicety)
+- [ ] Spend alerting on the VI account before the trunk goes live
+- [ ] Document what actually shipped in `docs/THE-STACK.md` (Layer 7)
+
+**Done when:** the browser places a call to a mobile phone and both sides hear each other; a call to the DID rings the browser and connects; hanging up from either end tears down the other cleanly.
+
+### Phase 6 — Stretch (optional, in order of learning value)
 
 1. Speaking indicator — Web Audio `AnalyserNode`
 2. Connection quality indicator — `getStats()` polling (RTT, packet loss)
@@ -157,6 +194,11 @@ Run at the end of Phases 3 and 4 (Phase 4 = two real devices, different networks
 | 10 | Refresh mid-call | Old call cleaned up; can rejoin the room |
 | 11 | Both users join simultaneously | Connects (Perfect Negotiation handles glare) |
 | 12 | (Phase 4) Cross-network call | Connects via STUN; if not, TURN task triggers |
+| 13 | (Phase 5) Browser → mobile phone | Phone rings, both sides hear each other |
+| 14 | (Phase 5) Mobile → DID | Browser shows an incoming call; accepting connects audio |
+| 15 | (Phase 5) DTMF into an IVR | Menu responds to the dialpad (RFC 4733, not audio tones) |
+| 16 | (Phase 5) Hang up from the phone side | Browser returns to idle; gateway channel freed (`core show channels` empty) |
+| 17 | (Phase 5) Call while a room call is active | Paths stay independent; neither drops the other |
 
 ## Risks
 
@@ -165,4 +207,8 @@ Run at the end of Phases 3 and 4 (Phase 4 = two real devices, different networks
 | Works on localhost, fails cross-device | Phase 4 exists for exactly this; all localhost tests skip NAT (Pitfall 12) |
 | Signaling races (ICE-before-SDP, glare) | Candidate buffer + Perfect Negotiation designed in from Phase 2, not patched later |
 | HTTPS forgotten until deploy day | Pangolin provides TLS; `isSecureContext` guard gives a clear error |
-| Scope creep | `PROJECT.md` Out of Scope list is binding; stretch items live in Phase 5 only |
+| Scope creep | `PROJECT.md` Out of Scope list is binding; stretch items live in Phase 6 only |
+| (P5) Toll fraud — an exposed SIP port is scanned within minutes, and minutes are billed to you | Carrier-IP allowlist, no anonymous SIP, fail2ban, concurrent-channel cap, spend alerts — all before the trunk goes live |
+| (P5) One-way audio — the classic SIP/NAT symptom | `external_media_address`/`external_signaling_address` set on the gateway, RTP range forwarded, gateway on a public IP rather than behind home NAT |
+| (P5) Calls labelled "Spam Likely" by carriers | Register CNAM and check the STIR/SHAKEN attestation level the trunk gives outbound calls |
+| (P5) Media now flows through a server we operate | Accepted deliberately and only for PSTN calls — browser-to-browser stays peer-to-peer |
