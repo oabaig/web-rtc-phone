@@ -32,7 +32,7 @@ docker run -d -p 3001:3001 webrtc-phone
 
 One image: Express serves the built client and the Socket.io signaling from port 3001.
 
-Set `TLS_CERT`/`TLS_KEY` (paths to a PEM cert/key, e.g. self-signed via openssl) to serve HTTPS instead — required for mic access from any device that isn't localhost.
+Set `TLS_CERT`/`TLS_KEY` (paths to a PEM cert/key, e.g. self-signed via openssl) to serve HTTPS instead — required for mic access from any device that isn't localhost. Plain HTTP requests to that same port are redirected to HTTPS, so a shared `host:3001` link works whichever scheme the browser guesses.
 
 ## Deploy to Unraid
 

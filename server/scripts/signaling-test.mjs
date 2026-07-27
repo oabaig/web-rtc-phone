@@ -28,9 +28,13 @@ const once = (socket, event, timeoutMs = 3000) =>
     });
   });
 
-const a = io(URL);
-const b = io(URL);
-const c = io(URL);
+// Against a TLS server the cert is self-signed; the polling transport checks
+// it explicitly, so NODE_TLS_REJECT_UNAUTHORIZED alone wouldn't be enough.
+const OPTS = { rejectUnauthorized: false };
+
+const a = io(URL, OPTS);
+const b = io(URL, OPTS);
+const c = io(URL, OPTS);
 
 let aGotEcho = false;
 a.on('description', () => (aGotEcho = true)); // must never fire from A's own send

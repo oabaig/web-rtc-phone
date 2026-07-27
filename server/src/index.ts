@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
+import { createServer as createNetServer } from 'node:net';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -28,11 +29,10 @@ const app = express();
 // TLS_CERT/TLS_KEY at a cert (e.g. self-signed, see certs/) to serve HTTPS;
 // unset, the server speaks plain HTTP as before.
 const { TLS_CERT, TLS_KEY } = process.env;
-const httpServer =
-  TLS_CERT && TLS_KEY
-    ? createHttpsServer({ cert: readFileSync(TLS_CERT), key: readFileSync(TLS_KEY) }, app)
-    : createServer(app);
-const io = new Server(httpServer, {
+const tls =
+  TLS_CERT && TLS_KEY ? { cert: readFileSync(TLS_CERT), key: readFileSync(TLS_KEY) } : null;
+const appServer = tls ? createHttpsServer(tls, app) : createServer(app);
+const io = new Server(appServer, {
   // Dev: the Vite client runs on a different origin (localhost:5173).
   // Prod: same origin (Express serves the built client below), CORS unused.
   cors: { origin: true },
@@ -121,6 +121,39 @@ if (existsSync(clientDist)) {
 }
 
 const PORT = Number(process.env.PORT ?? 3001);
-httpServer.listen(PORT, () => {
-  console.log(`signaling server listening on :${PORT} (${TLS_CERT && TLS_KEY ? 'https' : 'http'})`);
-});
+
+if (tls) {
+  // Browsers default a bare `host:port` to http://, and a plaintext request
+  // to a TLS socket dies with an empty response. So peek at the first byte of
+  // every connection — 0x16 is the TLS handshake record type — and hand the
+  // plaintext ones to a redirector instead: http://host:3001 bounces to
+  // https://host:3001 on that same port.
+  const redirector = createServer((req, res) => {
+    res.writeHead(301, { location: `https://${req.headers.host ?? `localhost:${PORT}`}${req.url}` });
+    res.end();
+  });
+
+  const demux = createNetServer((socket) => {
+    // Until the handoff below, no server owns this socket — so nothing else
+    // would swallow a reset (an unhandled 'error' takes the process down) or
+    // drop a peer that connects and then never speaks.
+    socket.on('error', () => socket.destroy());
+    const idle = setTimeout(() => socket.destroy(), 15_000);
+
+    socket.once('data', (first) => {
+      clearTimeout(idle);
+      socket.pause();
+      socket.unshift(first);
+      (first[0] === 0x16 ? appServer : redirector).emit('connection', socket);
+      process.nextTick(() => socket.resume());
+    });
+  });
+
+  demux.listen(PORT, () => {
+    console.log(`signaling server listening on :${PORT} (https; http redirects)`);
+  });
+} else {
+  appServer.listen(PORT, () => {
+    console.log(`signaling server listening on :${PORT} (http)`);
+  });
+}
