@@ -15,13 +15,14 @@ const BASE = process.env.SERVER_URL ?? 'http://localhost:3001';
 const ROOM = `E2E${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
 const executablePath = [
+  process.env.CHROME_PATH,
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
   '/usr/bin/google-chrome',
   '/usr/bin/chromium',
-].find(existsSync);
+].find((p) => p && existsSync(p));
 if (!executablePath) {
-  console.error('No Chrome/Edge found');
+  console.error('No Chrome/Edge found (set CHROME_PATH)');
   process.exit(1);
 }
 
