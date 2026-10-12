@@ -23,6 +23,18 @@ Open `http://localhost:5173` in two browser tabs (or windows), create a room in 
 
 > **Note:** browsers only allow microphone access on secure origins. `localhost` is exempt; testing from other devices requires HTTPS in front of the server — see PLANNING.md Phase 4 (Unraid + Pangolin).
 
+## Phone calls via a PBX (PBXware / Asterisk)
+
+Besides rooms, the app has a softphone at `#/phone` ("Open the phone" on the home screen): the browser registers as an extension on your PBX over SIP-over-WSS ([SIP.js](https://sipjs.com)), then dials numbers and takes calls through it. The PBX does the WebRTC↔phone-network bridging, so this path is not peer-to-peer, and our server isn't involved.
+
+The PBX needs:
+
+- a **WSS listener** reachable from the browser, with a certificate the browser trusts (e.g. `wss://pbx.example.com:8089/ws`)
+- an **extension with WebRTC enabled** (DTLS-SRTP, ICE, AVPF, rtcp-mux — Asterisk's `webrtc=yes`), Opus and/or G.711 allowed
+- its **RTP port range** open to the browser
+
+Enter the WSS URL and the extension's username/password on the phone screen. They're saved in that browser's `localStorage` only and are never built into the image (which is public). Details and status in [PLANNING.md](PLANNING.md) Phase 5.
+
 ## Docker (single container)
 
 ```bash
@@ -50,7 +62,17 @@ With the server running (`npm run dev` in `server/`, and `npm run build` in `cli
 cd server
 npm run test:signaling   # scripted protocol test of the room/relay logic
 npm run test:call        # full call in headless Chrome (fake mic): join, connect, mute, hang up, rejoin
+npm run test:phone       # softphone against a local Asterisk (below): register, calls both ways, DTMF, busy, cancel
 ```
+
+`test:phone` needs the throwaway PBX in `dev/asterisk` running first. PBXware is Asterisk underneath, so it's the same WebRTC path without touching the real PBX:
+
+```bash
+docker build -t webrtc-phone-asterisk dev/asterisk
+docker run -d --rm --name webrtc-phone-asterisk --network host webrtc-phone-asterisk
+```
+
+No Chrome installed? `npx @puppeteer/browsers install chrome-headless-shell@stable` and point `CHROME_PATH` at the binary it prints (both browser tests honour it).
 
 The rest of verification is a manual checklist (two devices, cross-network) in [PLANNING.md](PLANNING.md).
 

@@ -51,7 +51,7 @@ Consequences worth internalizing:
                                        during setup only, never for media
 ```
 
-Phase 5 adds one box — a media gateway on the DigitalOcean droplet — and for *those* calls the direct arrow disappears: audio runs browser → gateway → carrier.
+Phase 5 adds one box — a media gateway, which turned out to be an existing PBXware server — and for *those* calls the direct arrow disappears: audio runs browser → PBX → carrier.
 
 ---
 
@@ -169,7 +169,7 @@ The whole loop is: `git push` → ~2 min of CI → pull on Unraid. Nothing about
 
 Phase 5's territory. The two worlds solve the same problem and agree on almost nothing:
 
-| | Browser (WebRTC) | SIP trunk (VoIP Innovations) |
+| | Browser (WebRTC) | SIP trunk (carrier) |
 |---|---|---|
 | Signaling | your Socket.io messages, or SIP over WSS | SIP over UDP/TCP/TLS, ports 5060/5061 |
 | Media transport | SRTP, keyed by DTLS | plain RTP, usually unencrypted |
@@ -185,7 +185,7 @@ Consequences that matter more than the plumbing:
 
 - **The call is no longer end-to-end encrypted, and no longer peer-to-peer.** The gateway holds plaintext audio by definition. That's inherent to touching the PSTN, not a shortcut.
 - **Money is now attached to your ports.** An exposed SIP port is scanned within minutes; a compromised endpoint places international calls billed to you. Allowlist carrier IPs, refuse anonymous SIP, cap concurrent channels, and set spend alerts *before* the trunk is live.
-- **Trunks authenticate by IP**, so the gateway belongs somewhere with a static address — the DigitalOcean droplet, not home broadband behind a tunnel.
+- **Trunks authenticate by IP**, so the gateway belongs somewhere with a static address, not home broadband behind a tunnel. That's why this project uses an existing hosted PBX (PBXware) rather than running Asterisk on Unraid: the browser registers to it as an ordinary extension over WSS (`client/src/hooks/usePhone.ts`), and the PBX owns the trunk.
 - **DTMF is not audio.** Dialpad tones travel as RFC 4733 `telephone-event` packets (`RTCDTMFSender.insertDTMF()`); IVRs will not hear tones you play into the mic.
 - **Your number has a reputation.** Carrier STIR/SHAKEN attestation and CNAM decide whether the callee sees your name or "Spam Likely".
 - **E911** is a legal obligation on a real DID, not an optional feature.
@@ -201,7 +201,7 @@ Consequences that matter more than the plumbing:
 | Call connects, dies ~30 s later | ICE consent checks (RFC 7675) stopped getting through | webrtc-internals timeline; a stateful firewall dropping the UDP flow |
 | Both sides hang in "connecting" forever | glare — two simultaneous offers, no polite/impolite handling | server logs: two `description` events, no answer |
 | Signaling fine, media dead | you're looking at the wrong plane | remember the table at the top |
-| (P5) One-way audio on a phone call | classic SIP/NAT: gateway advertising a private address | `external_media_address`; `sngrep` on the gateway to read the SDP it sent |
+| (P5) One-way audio on a phone call | PBX RTP range firewalled, or the PBX advertising a private address | the SDP in the 200 OK (SIP.js logs, or `sngrep` on the PBX); `external_media_address` |
 
 `chrome://webrtc-internals` (or `about:webrtc` in Firefox) during a live call is the single highest-value tool here: candidate pairs, the selected pair, per-second bitrate and loss, and the full event timeline. Learn it before you learn anything else.
 
@@ -213,7 +213,7 @@ Consequences that matter more than the plumbing:
 | Restrictive networks | ~10–20% of calls can't find a direct path | TURN, ideally over TCP/443 too; it costs relay bandwidth |
 | Multiple server instances | Two peers land on different instances and never meet | Socket.io Redis adapter, or sticky room→instance routing |
 | Recording or transcription | There's no media at the server to record | Either an SFU/gateway in the path, or client-side `MediaRecorder` |
-| PSTN | Phones don't speak WebRTC | Phase 5's gateway |
+| PSTN | Phones don't speak WebRTC | Phase 5's gateway (the PBX) |
 
 Notice the pattern: nearly every requirement past "two browsers talking" is paid for by putting a server back on the media path. The peer-to-peer property is what makes this app nearly free to run, and it's the first thing you spend.
 
@@ -234,7 +234,7 @@ Notice the pattern: nearly every requirement past "two browsers talking" is paid
 | **Jitter buffer** | Small playout delay absorbing variable arrival times |
 | **SFU / MCU** | Selective Forwarding Unit (forwards streams) / Multipoint Control Unit (mixes them) — multi-party topologies |
 | **SIP** | Session Initiation Protocol — telephony signaling; carries SDP |
-| **B2BUA** | Back-to-back user agent: terminates one call leg, originates another (Asterisk here) |
+| **B2BUA** | Back-to-back user agent: terminates one call leg, originates another (PBXware's Asterisk here) |
 | **SIP trunk** | A carrier connection carrying calls to/from the PSTN |
 | **DID** | Direct Inward Dial — a phone number that routes to you |
 | **E.164** | The international number format (`+15551234567`) |
