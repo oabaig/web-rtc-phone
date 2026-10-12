@@ -160,3 +160,57 @@ button.link {
   gap: 0.75rem;
   margin-top: 0.5rem;
 }
+
+.phone-form,
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.phone-form input,
+.settings-form input {
+  font: inherit;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.phone-form input {
+  text-align: center;
+  font-size: 1.3rem;
+  letter-spacing: 0.05em;
+}
+
+.phone-form input:focus,
+.settings-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.settings-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: left;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.settings-form .optional {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.dialpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.dialpad button {
+  font-size: 1.2rem;
+  padding: 0.7rem 0;
+}

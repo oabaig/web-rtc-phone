@@ -9,7 +9,13 @@ function generateRoomCode(): string {
   return Array.from(values, (v) => CODE_ALPHABET[v % CODE_ALPHABET.length]).join('');
 }
 
-export function Home({ onJoin }: { onJoin: (roomCode: string) => void }) {
+export function Home({
+  onJoin,
+  onOpenPhone,
+}: {
+  onJoin: (roomCode: string) => void;
+  onOpenPhone: () => void;
+}) {
   const [code, setCode] = useState('');
 
   function handleJoin(e: FormEvent) {
@@ -47,6 +53,10 @@ export function Home({ onJoin }: { onJoin: (roomCode: string) => void }) {
           Join
         </button>
       </form>
+
+      <div className="divider">or call a phone</div>
+
+      <button onClick={onOpenPhone}>Open the phone (via your PBX)</button>
     </main>
   );
 }
